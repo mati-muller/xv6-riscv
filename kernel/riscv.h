@@ -1,4 +1,10 @@
 #ifndef __ASSEMBLER__
+#ifndef RISCV_H
+#define RISCV_H
+
+// Function declarations and definitions
+
+
 
 // which hart (core) is this?
 static inline uint64
@@ -341,6 +347,10 @@ sfence_vma()
   // the zero, zero means flush all TLB entries.
   asm volatile("sfence.vma zero, zero");
 }
+extern uint64 r_mhartid();
+extern uint64 r_mstatus();
+// Other function declarations...
+
 
 typedef uint64 pte_t;
 typedef uint64 *pagetable_t; // 512 PTEs
@@ -376,3 +386,4 @@ typedef uint64 *pagetable_t; // 512 PTEs
 // Sv39, to avoid having to sign-extend virtual addresses
 // that have the high bit set.
 #define MAXVA (1L << (9 + 9 + 9 + 12 - 1))
+#endif // RISCV_H

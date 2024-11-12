@@ -18,6 +18,10 @@
 // PHYSTOP -- end RAM used by the kernel
 
 // qemu puts UART registers here in physical memory.
+#include "param.h"   // Primero param.h
+#include "riscv.h"   // Luego riscv.h
+#include "spinlock.h"  // Asegúrate de incluir este encabezado para 'struct spinlock'
+
 #define UART0 0x10000000L
 #define UART0_IRQ 10
 
@@ -57,3 +61,4 @@
 //   TRAPFRAME (p->trapframe, used by the trampoline)
 //   TRAMPOLINE (the same page as in the kernel)
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)
+

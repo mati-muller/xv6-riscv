@@ -5,6 +5,10 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include <stdint.h> 
+#include "proc.h"
+#include "spinlock.h"
+#include "riscv.h"
 
 /*
  * the kernel's page table.
@@ -14,6 +18,17 @@ pagetable_t kernel_pagetable;
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
+#define PDXSHIFT 22
+#define PTXSHIFT 12
+// Ensure these macros are defined
+#define PDX(va)         (((uint64)(va) >> PDXSHIFT) & 0x1FF)
+#define PTX(va)         (((uint64)(va) >> PTXSHIFT) & 0x1FF)
+#define PTE_ADDR(pte)   ((uint64)(pte) & ~0xFFF)
+
+// Ensure these functions are defined
+#define P2V(a) ((void *)(((char *)(a)) + KERNBASE))
+#define V2P(a) (((uint64)(a)) - KERNBASE)
+
 
 // Make a direct-map page table for the kernel.
 pagetable_t
@@ -449,3 +464,67 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+// Función walkpgdir: Recibe la tabla de páginas del proceso y una dirección y devuelve la entrada de la tabla de páginas
+pte_t* walkpgdir(pde_t *pgdir, void *va, int alloc) {
+    pde_t *pde;
+    pte_t *pte;
+    // Obtener la entrada de la tabla de páginas (PDE) para la dirección virtual
+    pde = &pgdir[PDX(va)];
+    if (*pde & PTE_R) {
+        // Si la entrada de la tabla de páginas está presente, obtener la tabla de páginas
+        pte = (pte_t*)P2V(PTE_ADDR(*pde));
+    } else {
+        // Si no está presente, crear la tabla si es necesario
+        if (alloc && (pte = (pte_t*)kalloc()) != 0) {
+            memset(pte, 0, PGSIZE);
+            *pde = V2P(pte) | PTE_R | PTE_W | PTE_U;
+        } else {
+            return 0;
+        }
+    }
+    // Devolver la entrada de la tabla de páginas correspondiente
+    return &pte[PTX(va)];
+}
+
+// mprotect: Protege la memoria marcando las páginas como solo lectura
+int mprotect(void *a, int len) {
+    if ((uintptr_t)a % PGSIZE != 0 || len <= 0) {
+        return -1;  // Error si la dirección no está alineada a una página o longitud no válida
+    }
+
+    pte_t *pte;
+    for (uintptr_t addr = (uintptr_t)a; addr < (uintptr_t)a + len * PGSIZE; addr += PGSIZE) {
+        // Recorre la tabla de páginas del proceso actual
+        pte = walkpgdir(myproc()->pgdir, (void *)addr, 0);
+        if (pte == 0 || (*pte & PTE_R) == 0) {
+            return -1;  // Error si la página no está presente
+        }
+
+        // Cambia el permiso de escritura (PTE_W)
+        *pte &= ~PTE_W;  // Marcar como solo lectura
+    }
+
+    return 0;  // Éxito
+}
+
+// Función munprotect
+int munprotect(void *a, int len) {
+    if ((uintptr_t)a % PGSIZE != 0 || len <= 0) {
+        return -1;  // Error si la dirección no está alineada a una página o longitud no válida
+    }
+
+    pte_t *pte;
+    for (uintptr_t addr = (uintptr_t)a; addr < (uintptr_t)a + len * PGSIZE; addr += PGSIZE) {
+        // Recorre la tabla de páginas del proceso actual
+        pte = walkpgdir(myproc()->pgdir, (void *)addr, 0);
+        if (pte == 0 || (*pte & PTE_R) == 0) {
+            return -1;  // Error si la página no está presente
+        }
+
+        // Restaura el permiso de escritura
+        *pte |= PTE_W;  // Permitir escritura
+    }
+
+    return 0;  // Éxito
+}
+

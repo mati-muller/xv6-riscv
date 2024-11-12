@@ -16,6 +16,7 @@ void            brelse(struct buf*);
 void            bwrite(struct buf*);
 void            bpin(struct buf*);
 void            bunpin(struct buf*);
+void initlock(struct spinlock*, char*);
 
 // console.c
 void            consoleinit(void);
