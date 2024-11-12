@@ -17,8 +17,6 @@ Archivo Modificado: mmu.h, memlayout.h, proc.c.
 
 Código:
 
-c
-Copiar código
 int mprotect(void *addr, int len) {
     char *a = addr;
     int i;
