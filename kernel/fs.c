@@ -250,7 +250,7 @@ iget(uint dev, uint inum)
 
   acquire(&itable.lock);
 
-  // Is the inode already in the table?
+  // ¿El inodo ya está en la tabla?
   empty = 0;
   for(ip = &itable.inode[0]; ip < &itable.inode[NINODE]; ip++){
     if(ip->ref > 0 && ip->dev == dev && ip->inum == inum){
@@ -258,11 +258,11 @@ iget(uint dev, uint inum)
       release(&itable.lock);
       return ip;
     }
-    if(empty == 0 && ip->ref == 0)    // Remember empty slot.
+    if(empty == 0 && ip->ref == 0)    // Recordar un slot vacío
       empty = ip;
   }
 
-  // Recycle an inode entry.
+  // Reciclar una entrada de inodo.
   if(empty == 0)
     panic("iget: no inodes");
 
@@ -271,10 +271,15 @@ iget(uint dev, uint inum)
   ip->inum = inum;
   ip->ref = 1;
   ip->valid = 0;
+
+  // Inicializa permisos por defecto: Lectura y escritura
+  ip->perm = 3;
+
   release(&itable.lock);
 
   return ip;
 }
+
 
 // Increment reference count for ip.
 // Returns ip to enable ip = idup(ip1) idiom.
@@ -474,17 +479,22 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
   uint tot, m;
   struct buf *bp;
 
+  // Verificar permisos: Sin permiso de lectura
+  if((ip->perm & 1) == 0) {
+    return -1; // Error por falta de permisos
+  }
+
   if(off > ip->size || off + n < off)
     return 0;
   if(off + n > ip->size)
     n = ip->size - off;
 
-  for(tot=0; tot<n; tot+=m, off+=m, dst+=m){
-    uint addr = bmap(ip, off/BSIZE);
+  for(tot = 0; tot < n; tot += m, off += m, dst += m){
+    uint addr = bmap(ip, off / BSIZE);
     if(addr == 0)
       break;
     bp = bread(ip->dev, addr);
-    m = min(n - tot, BSIZE - off%BSIZE);
+    m = min(n - tot, BSIZE - off % BSIZE);
     if(either_copyout(user_dst, dst, bp->data + (off % BSIZE), m) == -1) {
       brelse(bp);
       tot = -1;
@@ -494,6 +504,7 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
   }
   return tot;
 }
+
 
 // Write data to inode.
 // Caller must hold ip->lock.
@@ -505,38 +516,41 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
 int
 writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
 {
-  uint tot, m;
-  struct buf *bp;
+    uint tot, m;
+    struct buf *bp;
 
-  if(off > ip->size || off + n < off)
-    return -1;
-  if(off + n > MAXFILE*BSIZE)
-    return -1;
-
-  for(tot=0; tot<n; tot+=m, off+=m, src+=m){
-    uint addr = bmap(ip, off/BSIZE);
-    if(addr == 0)
-      break;
-    bp = bread(ip->dev, addr);
-    m = min(n - tot, BSIZE - off%BSIZE);
-    if(either_copyin(bp->data + (off % BSIZE), user_src, src, m) == -1) {
-      brelse(bp);
-      break;
+    // Verificar si el archivo es inmutable o no tiene permiso de escritura
+    if(ip->perm == 5 || (ip->perm & 2) == 0) {
+        return -1; // Error: archivo inmutable o sin permiso de escritura
     }
-    log_write(bp);
-    brelse(bp);
-  }
 
-  if(off > ip->size)
-    ip->size = off;
+    if(off > ip->size || off + n < off)
+        return -1;
+    if(off + n > MAXFILE * BSIZE)
+        return -1;
 
-  // write the i-node back to disk even if the size didn't change
-  // because the loop above might have called bmap() and added a new
-  // block to ip->addrs[].
-  iupdate(ip);
+    for(tot = 0; tot < n; tot += m, off += m, src += m){
+        uint addr = bmap(ip, off / BSIZE);
+        if(addr == 0)
+            break;
+        bp = bread(ip->dev, addr);
+        m = min(n - tot, BSIZE - off % BSIZE);
+        if(either_copyin(bp->data + (off % BSIZE), user_src, src, m) == -1) {
+            brelse(bp);
+            break;
+        }
+        log_write(bp);
+        brelse(bp);
+    }
 
-  return tot;
+    if(off > ip->size)
+        ip->size = off;
+
+    iupdate(ip);
+    return tot;
 }
+
+
 
 // Directories
 

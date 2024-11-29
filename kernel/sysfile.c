@@ -503,3 +503,39 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_chmod(void)
+{
+    char path[MAXPATH];
+    int perm;
+
+    // Extraer los argumentos
+    if(argstr(0, path, MAXPATH) < 0)  // Extraer el nombre del archivo
+        return -1;
+
+    argint(1, &perm);  // Extraer el segundo argumento (permiso)
+
+    struct inode *ip;
+    begin_op();
+
+    if((ip = namei(path)) == 0){  // Buscar el archivo por su nombre
+        end_op();
+        return -1; // Error si el archivo no existe
+    }
+
+    ilock(ip);
+
+    // Verificar si el archivo es inmutable
+    if(ip->perm == 5) {
+        iunlock(ip);
+        end_op();
+        return -1; // Error: archivo inmutable
+    }
+
+    ip->perm = perm;  // Cambiar los permisos
+    iunlock(ip);
+    end_op();
+
+    return 0; // Éxito
+}
