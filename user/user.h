@@ -1,3 +1,9 @@
+#include <stdarg.h>
+#include <stdint.h>
+
+#define SYS_send 22
+#define SYS_receive 23
+
 struct stat;
 
 // system calls
@@ -22,22 +28,50 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int send(int pid, char *msg);
+int receive(char *buffer);
 
-// ulib.c
+// user library functions
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);
 void *memmove(void*, const void*, int);
 char* strchr(const char*, char c);
 int strcmp(const char*, const char*);
-void fprintf(int, const char*, ...) __attribute__ ((format (printf, 2, 3)));
-void printf(const char*, ...) __attribute__ ((format (printf, 1, 2)));
+void printf(int, const char*, ...);
 char* gets(char*, int max);
 uint strlen(const char*);
 void* memset(void*, int, uint);
-int atoi(const char*);
-int memcmp(const void *, const void *, uint);
-void *memcpy(void *, const void *, uint);
-
-// umalloc.c
 void* malloc(uint);
 void free(void*);
+int atoi(const char*);
+
+static inline int
+syscall(int num, ...)
+{
+  uint64_t a0, a1, a2, a3, a4, a5;
+  va_list ap;
+
+  va_start(ap, num);
+  a0 = va_arg(ap, uint64_t);
+  a1 = va_arg(ap, uint64_t);
+  a2 = va_arg(ap, uint64_t);
+  a3 = va_arg(ap, uint64_t);
+  a4 = va_arg(ap, uint64_t);
+  a5 = va_arg(ap, uint64_t);
+  va_end(ap);
+
+  uint64_t ret;
+  asm volatile("ecall"
+               : "=a" (ret)
+               : "a" (num), "D" (a0), "S" (a1), "d" (a2), "r" (a3), "r" (a4), "r" (a5)
+               : "memory");
+  return ret;
+}
+
+int send(int pid, char *msg) {
+    return syscall(SYS_send, pid, (uint64_t)msg);
+}
+
+int receive(char *buffer) {
+    return syscall(SYS_receive, (uint64_t)buffer);
+}

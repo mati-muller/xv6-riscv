@@ -1,4 +1,8 @@
 #ifndef __ASSEMBLER__
+#ifndef _RISC_V_H
+#define _RISC_V_H
+// contenido del archivo
+
 
 // which hart (core) is this?
 static inline uint64
@@ -344,7 +348,7 @@ sfence_vma()
 
 typedef uint64 pte_t;
 typedef uint64 *pagetable_t; // 512 PTEs
-
+#endif
 #endif // __ASSEMBLER__
 
 #define PGSIZE 4096 // bytes per page

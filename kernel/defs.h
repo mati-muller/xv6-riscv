@@ -1,3 +1,36 @@
+
+#ifndef DEFS_H
+#define DEFS_H
+#include "kernel/spinlock.h"
+#include "types.h"
+#include "param.h"
+#include "memlayout.h"
+#include "riscv.h"
+
+
+// Estructura para los mensajes
+struct message {
+    int sender_pid;       // PID del remitente
+    char content[128];    // Contenido del mensaje
+};
+
+// Estructura para la cola de mensajes
+struct message_queue {
+    struct message messages[32]; // Tamaño máximo de la cola
+    int head;                    // Índice del mensaje más antiguo
+    int tail;                    // Índice donde se agrega el próximo mensaje
+    int count;                   // Número de mensajes en la cola
+    struct spinlock lock;        // Protección contra accesos concurrentes
+};
+
+// Forward declaration of struct proc
+struct proc;
+
+// Function declarations
+void            proc_mapstacks(pagetable_t);
+pagetable_t     proc_pagetable(struct proc *);
+void            proc_freepagetable(pagetable_t, uint64);
+
 struct buf;
 struct context;
 struct file;
@@ -8,6 +41,8 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+
+
 
 // bio.c
 void            binit(void);
@@ -187,3 +222,10 @@ void            virtio_disk_intr(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+
+// Funciones asociadas a la cola de mensajes
+void init_msg_queue(void);
+uint64 sys_send(int pid, char *msg);
+uint64 sys_receive(char *buffer);
+#endif // DEFS_H

@@ -101,6 +101,13 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
+// En kernel/syscall.c
+extern uint64 sys_send_wrapper(void);   // Declaración del envoltorio de sys_send
+extern uint64 sys_receive_wrapper(void); // Declaración del envoltorio de sys_receive
+
+
+
+
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -126,6 +133,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_send] sys_send_wrapper,    // Apuntar a la función de envoltorio de sys_send
+[SYS_receive] sys_receive_wrapper,
 };
 
 void
@@ -144,4 +153,29 @@ syscall(void)
             p->pid, p->name, num);
     p->trapframe->a0 = -1;
   }
+}
+uint64
+sys_send_wrapper(void) {
+    int pid;
+    char *msg = (char*) kalloc();  // Allocate memory for the message
+
+    // Extract the arguments
+    argint(0, &pid);             // First argument: pid
+    argstr(1, msg, 128);         // Second argument: message
+
+    uint64 result = sys_send(pid, msg);  // Call the actual sys_send function
+    kfree(msg);                          // Free the allocated memory
+    return result;
+}
+
+uint64
+sys_receive_wrapper(void) {
+    char *buffer = (char*) kalloc();  // Allocate memory for the buffer
+
+    // Extract the argument
+    argstr(0, buffer, 128);  // Buffer to receive the message
+
+    uint64 result = sys_receive(buffer);  // Call the actual sys_receive function
+    kfree(buffer);                        // Free the allocated memory
+    return result;
 }
